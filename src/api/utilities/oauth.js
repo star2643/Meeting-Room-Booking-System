@@ -14,11 +14,11 @@ module.exports = {
     client: {
       id:
         process.env.oauth_client_id == undefined
-          ? "202412032157153TTwd9OVvxgb"
+          ? "20260126000153IKoqt2Kc0aiF"
           : process.env.oauth_client_id,
       secret:
         process.env.oauth_client_secret == undefined
-          ? "jAeau0dgAIJWrDw7tleyitNLD7kwbOtXgfHCan27jyikZXagw6F"
+          ? "S7Fz8IUXSfkcfqZss4tPSXiByBzSaPe7AiavxdZeG2mZIsYFoJgx"
           : process.env.oauth_client_secret,
     },
     auth: {
@@ -76,7 +76,7 @@ module.exports = {
         // put the token in cookie and redirect to main page if login successfully
         const user_info = await Info.getInfoFromAPI(access_token);
         const token = jwt.signJwtToken(user_info.identifier);
-        res.cookie("token", token, { sameSite: 'strict', secure: true, maxAge: 1000 * 60 * 60 * 24});
+        res.cookie("token", token, { sameSite: 'lax', secure: false, maxAge: 1000 * 60 * 60 * 24});
         res.redirect(`${redirect_uri}`);
         return {
           suc: true,

@@ -14,4 +14,12 @@ export default defineConfig({
     }
   },
   base: '/2fconference/',
+  server: {
+    proxy: {
+      '/2fconference/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      }
+    }
+  }
 })
