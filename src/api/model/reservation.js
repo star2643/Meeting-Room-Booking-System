@@ -244,5 +244,111 @@ module.exports = {
                 return null;
             }
         }
+    },
+
+    // insert reservation with series_id and occurrence_date
+    insertWithSeries : async function (identifier, room_id, name, start_time, end_time, show, ext, series_id, occurrence_date) {
+        const conn = await db_conn.getDBConnection();
+        if (conn == null) {
+            return false;
+        }
+        try {
+            const sql = "INSERT INTO `Reservation` (`identifier`, `room_id`, `name`, `start_time`, `end_time`, `show`, `ext`, `series_id`, `occurrence_date`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);";
+            await conn.query(sql, [identifier, room_id, name, start_time, end_time, show, ext, series_id, occurrence_date]);
+            db_conn.closeDBConnection(conn);
+            return true;
+        }
+        catch (e) {
+            console.error("error inserting reservation with series: ", e);
+            db_conn.closeDBConnection(conn);
+            return false;
+        }
+    },
+
+    // batch insert reservations with series_id using transaction (NFR7)
+    insertBatchWithSeries : async function (reservations) {
+        const conn = await db_conn.getDBConnection();
+        if (conn == null) {
+            return false;
+        }
+        try {
+            await conn.beginTransaction();
+            const sql = "INSERT INTO `Reservation` (`identifier`, `room_id`, `name`, `start_time`, `end_time`, `show`, `ext`, `series_id`, `occurrence_date`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);";
+            for (const r of reservations) {
+                await conn.query(sql, [r.identifier, r.room_id, r.name, r.start_time, r.end_time, r.show, r.ext, r.series_id, r.occurrence_date]);
+            }
+            await conn.commit();
+            db_conn.closeDBConnection(conn);
+            return true;
+        }
+        catch (e) {
+            console.error("error batch inserting reservations: ", e);
+            await conn.rollback();
+            db_conn.closeDBConnection(conn);
+            return false;
+        }
+    },
+
+    // get all reservations by series_id
+    getBySeriesId : async function (series_id) {
+        const conn = await db_conn.getDBConnection();
+        if (conn == null) {
+            return null;
+        }
+        try {
+            const sql = "SELECT * FROM `Reservation` WHERE `series_id` = ? AND `status` = 0 ORDER BY `occurrence_date`;";
+            const result = await conn.query(sql, [series_id]);
+            db_conn.closeDBConnection(conn);
+            return result;
+        }
+        catch (e) {
+            console.error("error getting reservations by series_id: ", e);
+            db_conn.closeDBConnection(conn);
+            return null;
+        }
+    },
+
+    // delete all reservations by series_id (soft delete)
+    deleteBySeriesId : async function (series_id) {
+        const conn = await db_conn.getDBConnection();
+        if (conn == null) {
+            return false;
+        }
+        try {
+            const sql = "UPDATE `Reservation` SET `status` = 1 WHERE `series_id` = ?;";
+            await conn.query(sql, [series_id]);
+            db_conn.closeDBConnection(conn);
+            return true;
+        }
+        catch (e) {
+            console.error("error deleting reservations by series_id: ", e);
+            db_conn.closeDBConnection(conn);
+            return false;
+        }
+    },
+
+    // check overlap for batch reservations (single query for performance)
+    checkBatchOverlap : async function (room_id, reservations) {
+        const conn = await db_conn.getDBConnection();
+        if (conn == null) {
+            return [];
+        }
+        try {
+            const conflicts = [];
+            for (const r of reservations) {
+                const sql = "SELECT COUNT(reserve_id) as cnt FROM `Reservation` WHERE `room_id` = ? AND `status` = 0 AND ((? > `start_time` AND ? < `end_time`) OR (? > `start_time` AND ? < `end_time`) OR (? <= `start_time` AND ? >= `end_time`));";
+                const result = await conn.query(sql, [room_id, r.start_time, r.start_time, r.end_time, r.end_time, r.start_time, r.end_time]);
+                if (result[0].cnt > 0) {
+                    conflicts.push(r.occurrence_date);
+                }
+            }
+            db_conn.closeDBConnection(conn);
+            return conflicts;
+        }
+        catch (e) {
+            console.error("error checking batch overlap: ", e);
+            db_conn.closeDBConnection(conn);
+            return [];
+        }
     }
 }

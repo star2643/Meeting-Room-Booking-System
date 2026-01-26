@@ -73,3 +73,25 @@ CREATE TABLE `Doc` (
     `id_content` varchar(200) NULL,
     PRIMARY KEY (`name`)
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- RecurringSeries: 週期預約規則表
+CREATE TABLE `RecurringSeries` (
+    `series_id` int NOT NULL AUTO_INCREMENT,
+    `identifier` varchar(12) NOT NULL,
+    `room_id` int NOT NULL,
+    `name` varchar(40) NOT NULL,
+    `rrule` varchar(255) NOT NULL,
+    `start_time` TIME NOT NULL,
+    `end_time` TIME NOT NULL,
+    `show` boolean NOT NULL,
+    `ext` varchar(10),
+    `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`series_id`),
+    FOREIGN KEY (`identifier`) REFERENCES `User` (`identifier`),
+    FOREIGN KEY (`room_id`) REFERENCES `Room` (`room_id`)
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 修改 Reservation 表新增週期預約欄位
+ALTER TABLE `Reservation` ADD COLUMN `series_id` int NULL;
+ALTER TABLE `Reservation` ADD COLUMN `occurrence_date` DATE NULL;
+ALTER TABLE `Reservation` ADD FOREIGN KEY (`series_id`) REFERENCES `RecurringSeries`(`series_id`) ON DELETE SET NULL;

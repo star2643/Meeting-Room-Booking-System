@@ -81,6 +81,14 @@
                     </select>
                 </div>
 
+                <recurring-form
+                    ref="recurringForm"
+                    :show="true"
+                    :start-date="formStartDate"
+                    @recurring-change="onRecurringChange"
+                    @rrule-generated="onRruleGenerated"
+                />
+
                 <div class="request-check">
                     <input type="checkbox" id="checkrule" style="width: 25px;">
                     <h2 class="hamburger-request-title">
@@ -226,8 +234,12 @@
 </template>
 <script>
 import config from '@/config';
+import recurringForm from './recurringForm.vue';
 export default {
     name: 'application',
+    components: {
+        recurringForm
+    },
     props: {
         parent: String,
         info: Object,
@@ -246,6 +258,13 @@ export default {
             default: false
         },
     },
+    data() {
+        return {
+            isRecurring: false,
+            currentRRule: null,
+            formStartDate: ''
+        };
+    },
     async mounted() {
         this.syncStartEndDate();
         if (window.innerWidth < 830) {
@@ -253,6 +272,18 @@ export default {
         }
     },
     methods: {
+        onRecurringChange(isRecurring) {
+            this.isRecurring = isRecurring;
+        },
+        onRruleGenerated(rrule) {
+            this.currentRRule = rrule;
+        },
+        updateFormStartDate() {
+            const startDate = document.getElementById('startdate');
+            if (startDate && startDate.value) {
+                this.formStartDate = startDate.value;
+            }
+        },
         resizeWindow() {
             // resize after 1 sec
             setTimeout(() => {
@@ -275,9 +306,11 @@ export default {
             this.resizeWindow();
         },
         syncStartEndDate() {
+            const self = this;
             const startDate = document.getElementById('startdate');
             startDate.addEventListener('change', function () {
                 document.getElementById('enddate').value = startDate.value;
+                self.formStartDate = startDate.value;
             });
         },
         back() {
@@ -362,7 +395,7 @@ export default {
                 alert('所有欄位都是必填的，請完整填寫表單！');
                 return;
             }
-            
+
             if (!this.ruleBoxCheck()) {
                 return;
             }
@@ -379,34 +412,75 @@ export default {
                 }
             }
 
-            const data = {
-                name: name,
-                room_id: '1',
-                start_time: startTimestamp,
-                end_time: endTimestamp,
-                show: true,
-                ext: ext,
+            // Check if recurring reservation
+            if (this.isRecurring && this.currentRRule) {
+                const startTime = `${starthour}:${startminute}`;
+                const endTime = `${endhour}:${endminute}`;
+                const recurringData = {
+                    name: name,
+                    room_id: 1,
+                    start_time: startTime,
+                    end_time: endTime,
+                    rrule: this.currentRRule,
+                    show: true,
+                    ext: ext,
+                };
+                const api = config.apiUrl + '/recurring-reservation';
+                fetch(api, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(recurringData),
+                })
+                .then(response => response.json())
+                .then((data) => {
+                    if (data.series_id) {
+                        alert(`週期預約成功！已建立 ${data.created_count} 場次`);
+                        window.location.reload();
+                    }
+                    else if (data.error) {
+                        if (data.conflicts) {
+                            alert(`週期預約失敗：${data.error}\n衝突日期：${data.conflicts.join(', ')}`);
+                        } else {
+                            alert(`週期預約失敗：${data.error}`);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('週期預約失敗：網路錯誤');
+                });
+            } else {
+                // Regular single reservation
+                const data = {
+                    name: name,
+                    room_id: '1',
+                    start_time: startTimestamp,
+                    end_time: endTimestamp,
+                    show: true,
+                    ext: ext,
+                };
+                const api = config.apiUrl + '/reservation';
+                fetch(api, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                })
+                .then(response => response.json())
+                .then((data) => {
+                    if (data.suc) {
+                    alert("預約成功");
+                    window.location.reload();
+                    }
+                    else {
+                    alert(`預約失敗：${data.result}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
             }
-            const api = config.apiUrl + '/reservation';
-            fetch(api, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            .then(response => response.json())
-            .then((data) => {
-                if (data.suc) {
-                alert("預約成功");
-                window.location.reload();
-                }
-                else {
-                alert(`預約失敗：${data.result}`);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
         },
     }
 }
